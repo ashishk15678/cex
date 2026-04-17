@@ -1,0 +1,66 @@
+name: Auto Changelog
+
+on:
+  pull_request:
+    types: [closed]
+    branches: ["main"]
+
+jobs:
+  update_changelog:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update CHANGELOG.md
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          DATE=$(date +'%Y-%m-%d')
+
+          # Extract the PR body to capture details, bugs, and CodeRabbitAI summaries safely
+          PR_BODY=$(cat << 'EOF_PR_BODY'
+          ${{ github.event.pull_request.body }}
+          EOF_PR_BODY
+          )
+
+          # Fallback if body is empty
+          if [ -z "$PR_BODY" ]; then
+            PR_BODY="*No additional description provided.*"
+          fi
+
+          # Create file if it doesn't exist
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Project Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+
+          # Construct the details/summary block
+          cat << EOF_ENTRY > new_entry.md
+          <details>
+          <summary><b>$DATE</b> | PR <a href="$PR_URL">#$PR_NUMBER</a>: $PR_TITLE (by @$PR_AUTHOR)</summary>
+
+          $PR_BODY
+
+          </details>
+
+          EOF_ENTRY
+
+          # Insert the new entry right after the title heading
+          awk '/^# Project Changelog/{print; print ""; while((getline line < "new_entry.md") > 0) print line; next}1' CHANGELOG.md > tmp.md
+          mv tmp.md CHANGELOG.md
+          rm new_entry.md
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md for PR #${{ github.event.pull_request.number }} [skip ci]" || echo "No changes to commit"
+          git push origin main

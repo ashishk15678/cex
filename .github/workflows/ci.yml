@@ -1,0 +1,14 @@
+name: CI Check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Project
+        run: |
+          gcc -Wall -Wextra -o chat_server main.c -lpthread
