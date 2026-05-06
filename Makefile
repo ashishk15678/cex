@@ -1,30 +1,28 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Isrc -g
-LIBS = -lm -lssl -lcrypto -lpthread -lwebsockets -ljson-c
+CFLAGS = -Wall -Isrc -g
+LIBS = -lm -lssl -lcrypto -lpthread -ljson-c -lcurl
 
 SRC_DIR = src
 BUILD_DIR = build
 TARGET = $(BUILD_DIR)/cex
 
-# Find all .c files in src and its subdirectories
-SRCS := $(shell find $(SRC_DIR) -name '*.c')
+SRCS := $(shell find $(SRC_DIR) -name '*.c' ! -name 'onchain_market.c')
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 
-# Default target
 all: $(TARGET)
 
-# Rule to link the program
 $(TARGET): $(OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
-# Rule to compile source files into object files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Clean up build artifacts
+bpf:
+	clang -target bpf -O2 -c src/market/onchain_market.c -o build/onchain_market.o
+
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean
+.PHONY: all clean bpf

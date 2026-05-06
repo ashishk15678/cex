@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Market</title>
+    <!-- Include Solana Web3.js via CDN -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .card { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        button { padding: 10px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        input { padding: 8px; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
+        #status { margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>Solana Prediction Market</h1>
+
+    <div class="card">
+        <h3>1. Connect Wallet</h3>
+        <button id="connectBtn">Connect Phantom Wallet</button>
+        <p id="walletAddress">Not connected</p>
+    </div>
+
+    <div class="card">
+        <h3>2. Market Setup</h3>
+        <label>Program ID (From Deploy Script):</label>
+        <input type="text" id="programId" placeholder="Paste Program ID here..." value="11111111111111111111111111111111">
+        <label>Market Data Account (Pubkey):</label>
+        <input type="text" id="marketAccount" placeholder="Base58 Market Account...">
+    </div>
+
+    <div class="card">
+        <h3>3. Place a Bet</h3>
+        <label>Option (1 for Yes, 2 for No):</label>
+        <input type="number" id="betOption" value="1" min="1" max="2">
+        <label>Amount (lamports):</label>
+        <input type="number" id="betAmount" value="500000000"> <!-- 0.5 SOL -->
+        <button id="betBtn">Place Bet</button>
+    </div>
+
+    <div id="status">Status: Waiting...</div>
+
+    <script>
+        const solanaWeb3 = window.solanaWeb3;
+        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
+        let wallet = null;
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            if (window.solana && window.solana.isPhantom) {
+                try {
+                    const resp = await window.solana.connect();
+                    wallet = resp.publicKey;
+                    document.getElementById('walletAddress').innerText = "Connected: " + wallet.toString();
+                    document.getElementById('status').innerText = "Status: Wallet connected.";
+                } catch (err) {
+                    console.error("Connection failed", err);
+                }
+            } else {
+                alert("Phantom wallet not found! Please install it.");
+            }
+        });
+
+        document.getElementById('betBtn').addEventListener('click', async () => {
+            if (!wallet) return alert("Please connect wallet first!");
+
+            const programIdStr = document.getElementById('programId').value;
+            const marketAccountStr = document.getElementById('marketAccount').value;
+            const betOption = parseInt(document.getElementById('betOption').value);
+            const betAmount = parseInt(document.getElementById('betAmount').value);
+
+            if (!programIdStr || !marketAccountStr) return alert("Please provide Program ID and Market Account!");
+
+            try {
+                document.getElementById('status').innerText = "Status: Building transaction...";
+                const programId = new solanaWeb3.PublicKey(programIdStr);
+                const marketAccount = new solanaWeb3.PublicKey(marketAccountStr);
+
+                // Build Instruction Data [Instruction=1 (PlaceBet), Option=uint8, Amount=uint64]
+                const data = new Uint8Array(10);
+                data[0] = 1; // Instruction: PlaceBet
+                data[1] = betOption; // Option (1 or 2)
+
+                // Write 64-bit amount (Little Endian)
+                const dataView = new DataView(data.buffer);
+                dataView.setBigUint64(2, BigInt(betAmount), true);
+
+                const instruction = new solanaWeb3.TransactionInstruction({
+                    keys: [{ pubkey: marketAccount, isSigner: false, isWritable: true }],
+                    programId,
+                    data: Buffer.from(data),
+                });
+
+                const transaction = new solanaWeb3.Transaction().add(instruction);
+                transaction.feePayer = wallet;
+                const latestBlockhash = await connection.getLatestBlockhash();
+                transaction.recentBlockhash = latestBlockhash.blockhash;
+
+                document.getElementById('status').innerText = "Status: Requesting signature...";
+
+                // Send via Phantom
+                const { signature } = await window.solana.signAndSendTransaction(transaction);
+
+                document.getElementById('status').innerText = `Status: Sending transaction... Signature: ${signature}`;
+
+                await connection.confirmTransaction({
+                    signature,
+                    blockhash: latestBlockhash.blockhash,
+                    lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
+                });
+
+                document.getElementById('status').innerText = `Status: Transaction confirmed! Signature: ${signature}`;
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('status').innerText = "Status: Error - " + err.message;
+            }
+        });
+    </script>
+</body>
+</html>

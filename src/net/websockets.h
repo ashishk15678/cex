@@ -50,8 +50,10 @@ void ws_free_frame(Frame* frame);
 #endif // WEBSOCKETS_H
 
 #ifdef WEBSOCKETS_H_IMPL
+// Prevent infinite recursion by only defining the implementation once
+#ifndef WEBSOCKETS_H_IMPL_DONE
+#define WEBSOCKETS_H_IMPL_DONE
 
-#include "websockets.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -185,7 +187,8 @@ void ws_free_frame(Frame* frame) {
     }
 }
 
-#endif
+#endif // WEBSOCKETS_H_IMPL_DONE
+#endif // WEBSOCKETS_H_IMPL
 
 #ifdef __cplusplus
 }
